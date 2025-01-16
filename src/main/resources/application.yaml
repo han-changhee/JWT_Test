@@ -1,0 +1,40 @@
+spring:
+  main:
+    web-application-type: servlet
+  config:
+    activate:
+      on-profile: test
+  cache:
+    type: simple
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: postgres
+    password: 43054305
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        default_schema: public
+        show_sql: true
+        format_sql: false
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+jwt:
+  secret: a0b443ed3c0a21856f45ba4c0536068cdde8e98d9621140a843ff2670db8f778
+
+server:
+  port: 8082
+
+springdoc:
+  packages-to-exclude: org.egovframework.rte.jwt_test
+  default-consumes-media-type: application/json;charset=UTF-8
+  default-produces-media-type: application/json;charset=UTF-8
+  swagger-ui:
+    path: /swagger
+    disable-swagger-default-url: true
+    display-request-duration: true
+    operations-sorter: alpha
