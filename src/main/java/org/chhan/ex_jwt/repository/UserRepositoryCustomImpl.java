@@ -22,6 +22,13 @@ public class UserRepositoryCustomImpl implements UserRepositoryCustom {
                 .fetchOne();
     }
 
+    @Override
+    public User findByUserId(Long id) {
+        return queryFactory.selectFrom(QUser.user)
+                .where(QUser.user.id.eq(id))
+                .fetchOne();
+    }
+
     @Transactional
     @Override
     public void updateUserRefreshToken(User user) {

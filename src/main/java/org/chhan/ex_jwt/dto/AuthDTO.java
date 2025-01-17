@@ -22,7 +22,6 @@ public class AuthDTO {
 
     @Data
     public static class TokenReissuance {
-        private String email;
-        private String currentRefreshToken;
+        private long id;
     }
 }

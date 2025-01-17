@@ -4,7 +4,6 @@ import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.chhan.ex_jwt.Util;
 import org.chhan.ex_jwt.auth.CustomUserDetail;
@@ -21,7 +20,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.time.Duration;
 import java.util.*;
-import java.util.function.Function;
 
 @Slf4j
 @Component
@@ -38,28 +36,7 @@ public class JwtTokenProvider {
     }
 
     /** SSR2OSR Backend 소스 코드 참고 **/
-    // 요청에서 Token 추출, (email, password, token)
-    public String resolveToken(HttpServletRequest request) {
-        String bearerToken = request.getHeader("Authorization");
-
-        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer")) {
-            return bearerToken.substring(7);
-        }
-        return null;
-    }
-
-    // JWT Token에서 특정 클레임 추출
-    public <T> T extractClaim(String jwtToken, Function<Claims, T> claimsResolver) {
-        final Claims claims = extractAllClaims(jwtToken);
-        return claimsResolver.apply(claims);
-    }
-
-    // JWT 토큰에서 모든 클레임 추출
-    private Claims extractAllClaims(String jwtToken) {
-        // 찾은 예제와 차이점은 key를 String에서 추출한 byte가 아니라 decoding한 key값임
-        return Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(jwtToken).getBody();
-    }
-
+    // 1. Generate Token
     // User 정보를 통해 AccessToken / Refresh Token 발급
     public JwtToken generateToken(Authentication authentication) {
         User user = new User();
@@ -101,6 +78,65 @@ public class JwtTokenProvider {
                 .build();
     }
 
+    // 2. Token 추출
+    // 요청에서 Token 추출, (email, password, token)
+    public String resolveToken(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+
+        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer")) {
+            return bearerToken.substring(7);
+        }
+        return null;
+    }
+
+    // 3. Token 유효성 검사
+    // token Type 확인
+    public String tokenTypeCheck(String token) {
+
+        Base64.Decoder decoder = Base64.getDecoder();
+        String[] tokenSplit = token.split("\\.");
+        String decodedToken = new String(decoder.decode(tokenSplit[1]), StandardCharsets.UTF_8);
+
+        Map<String, Object> convertMap = Util.jsonToMap(decodedToken);
+        return convertMap.get("type").toString();
+    }
+
+    // Token 유효성 검사
+    public String validateToken(String token) {
+        try {
+            Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
+            return "Success";
+        } catch (io.jsonwebtoken.security.SecurityException | MalformedJwtException e) {
+            // JWT 서명의 보안 문제
+            // 형식이 잘못됨
+            throw new JwtException("A Invalid");
+        } catch (ExpiredJwtException e) {
+            // Access Token이 만료됨
+            throw new JwtException("A Expired");
+        } catch (UnsupportedJwtException e) {
+            // 지원되지 않는 JWT 제공 (형식이 잘못됨)
+            throw new JwtException("A Unsupported");
+        } catch (IllegalArgumentException e) {
+            // 클라임 문자열이 비어있거나 null
+            return "JWT claims string is empty.";
+        }
+    }
+
+    // 4. Token 재발급
+    // accessToken 재발급
+    public String accessTokenReissuance(User user) {
+        Date now = new Date();
+        return Jwts.builder()
+                .claim("email", user.getEmail()) // 불러오고자 하는 정보들
+                .claim("id", user.getId()) // 불러오고자 하는 정보들
+                .claim("type", "acT")
+                .setExpiration(new Date(now.getTime() + ACCESS_TOKEN_VALID_TIME))
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+    // refreshToken 재발급 -> 만료시 로그아웃하기 때문에
+
+    // 5. JWT Token 복호화???
     // Jwt 토큰을 복호화 하여 토큰에 들어있는 정보를 꺼내는 메서드
     public Authentication getAuthentication(String token) {
         // Jwt 토큰 복호화
@@ -118,21 +154,6 @@ public class JwtTokenProvider {
         return null;
     }
 
-    public String validateToken(String token) {
-        try {
-            Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
-            return "Success";
-        } catch (io.jsonwebtoken.security.SecurityException | MalformedJwtException e) {
-            return "Invalid";
-        } catch (ExpiredJwtException e) {
-            return "Expired";
-        } catch (UnsupportedJwtException e) {
-            return "Unsupported";
-        } catch (IllegalArgumentException e) {
-            return "JWT claims string is empty.";
-        }
-    }
-
     private Claims parseClaims(String accessToken) {
         try {
             return Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(accessToken).getBody();
@@ -143,26 +164,9 @@ public class JwtTokenProvider {
 
 
 
-    // accessToken 재발급
-    public String accessTokenReissuance(User user) {
-        Date now = new Date();
-        return Jwts.builder()
-                .claim("email", user.getEmail()) // 불러오고자 하는 정보들
-                .claim("id", user.getId()) // 불러오고자 하는 정보들
-                .claim("type", "acT")
-                .setExpiration(new Date(now.getTime() + ACCESS_TOKEN_VALID_TIME))
-                .signWith(key, SignatureAlgorithm.HS256)
-                .compact();
-    }
 
-    public String tokenTypeCheck(String token) {
-        Base64.Decoder decoder = Base64.getDecoder();
-        String[] tokenSplit = token.split("\\.");
-        String decodedToken = new String(decoder.decode(tokenSplit[1]), StandardCharsets.UTF_8);
 
-        Map<String, Object> convertMap = Util.jsonToMap(decodedToken);
-        return convertMap.get("type").toString();
-    }
+
 
 
 
@@ -235,8 +239,18 @@ public class JwtTokenProvider {
 //        final String email = extractEmail(token);
 //        return (email.equals(customUserDetail.getUsername()) && !isTokenExpired(token));
 //    }
-
-
+//
+//    // JWT Token에서 특정 클레임 추출
+//    public <T> T extractClaim(String jwtToken, Function<Claims, T> claimsResolver) {
+//        final Claims claims = extractAllClaims(jwtToken);
+//        return claimsResolver.apply(claims);
+//    }
+//
+//    // JWT 토큰에서 모든 클레임 추출
+//    private Claims extractAllClaims(String jwtToken) {
+//        // 찾은 예제와 차이점은 key를 String에서 추출한 byte가 아니라 decoding한 key값임
+//        return Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(jwtToken).getBody();
+//    }
 
 
 

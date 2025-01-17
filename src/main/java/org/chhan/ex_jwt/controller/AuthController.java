@@ -2,6 +2,8 @@ package org.chhan.ex_jwt.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.chhan.ex_jwt.domain.User;
 import org.chhan.ex_jwt.dto.AuthDTO;
@@ -10,30 +12,38 @@ import org.chhan.ex_jwt.service.AuthService;
 import org.chhan.ex_jwt.service.UserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "Auth API")
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
 public class AuthController {
-
-    private final AuthenticationManager authenticationManager;
-
     private final AuthService authService;
     private final UserService userService;
 
     @Operation(summary = "Login API")
     @PostMapping("/login")
-    public ResponseEntity<JwtToken> login(@RequestBody AuthDTO.Login loginDTO) {
+    public ResponseEntity<JwtToken> login(@RequestBody AuthDTO.Login loginDTO, HttpServletResponse response) {
         JwtToken jwtToken = authService.login(loginDTO);
+
+        String accessToken = jwtToken.getAccessToken();
+        String refreshToken = jwtToken.getRefreshToken();
+
+        Cookie accessCookie = new Cookie("access_token", accessToken);
+        accessCookie.setHttpOnly(true);
+        accessCookie.setSecure(true);
+        accessCookie.setPath("/");
+        accessCookie.setMaxAge(3600);
+
+        Cookie refreshCookie = new Cookie("refresh_token", refreshToken);
+        refreshCookie.setHttpOnly(true);
+        refreshCookie.setSecure(true);
+        refreshCookie.setPath("/");
+        refreshCookie.setMaxAge(3600);
+
+        response.addCookie(accessCookie);
+        response.addCookie(refreshCookie);
 
         if (jwtToken != null) {
             authService.updateRefreshToken(jwtToken.getUser());
@@ -64,18 +74,25 @@ public class AuthController {
 
     @Operation(summary = "Access Token 재발급")
     @PostMapping("/token/reissuance")
-    public ResponseEntity<String> tokenReissuance(@RequestBody AuthDTO.TokenReissuance paramUser) {
-        User user = userService.findUserByEmail(paramUser.getEmail());
-        if (user.getCurrentRefreshToken().equals(paramUser.getCurrentRefreshToken())) {
-            String tokenStatus = authService.refreshTokenCheck(paramUser.getCurrentRefreshToken());
+    public ResponseEntity<String> tokenReissuance(@CookieValue(name = "access_token") String accessToken,
+                                                  @CookieValue(name = "refresh_token") String refreshToken,
+                                                  @RequestBody AuthDTO.TokenReissuance paramUser) {
+        System.out.println("Access Token : " + accessToken);
+        System.out.println("Refresh Token : " + refreshToken);
+        User user = userService.findUserByUserId(paramUser.getId());
+
+        if (user.getCurrentRefreshToken().equals(refreshToken)) {
+            String tokenStatus = authService.refreshTokenCheck(refreshToken);
             if (tokenStatus.equals("R Success")) {
                 return ResponseEntity.ok(authService.accessTokenReissuance(user));
             } else {
                 return ResponseEntity.badRequest().body(tokenStatus);
             }
         } else {
-            return ResponseEntity.notFound().build();
+
         }
+
+        return ResponseEntity.status(400).body("GG");
     }
 
 

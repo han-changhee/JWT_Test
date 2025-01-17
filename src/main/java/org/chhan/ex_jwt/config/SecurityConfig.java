@@ -1,11 +1,9 @@
 package org.chhan.ex_jwt.config;
 
 import lombok.RequiredArgsConstructor;
-import org.chhan.ex_jwt.auth.CustomUserDetailService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -17,15 +15,13 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
-
-    private final CustomUserDetailService userDetailService;
-
+    private final WebConfig webConfig;
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         // CSRF, CORS
         http.csrf(AbstractHttpConfigurer::disable); // csrf 비활성화
-        http.cors(AbstractHttpConfigurer::disable); // cors 비활성화
-//        http.cors(Customizer.withDefaults()); // cors Default로 활성화
+//        http.cors(AbstractHttpConfigurer::disable); // cors 비활성화
+        http.cors(Customizer.withDefaults()); // cors Default로 활성화
 
         // FormLogin, BasicHttp 비활성화
         http.formLogin(AbstractHttpConfigurer::disable);
@@ -49,14 +45,5 @@ public class SecurityConfig {
     @Bean
     public BCryptPasswordEncoder bCryptPasswordEncoder() {
         return new BCryptPasswordEncoder();
-    }
-
-    @Bean
-    public AuthenticationManager authenticationManager(HttpSecurity http) throws Exception {
-        AuthenticationManagerBuilder authenticationManagerBuilder = http.getSharedObject(AuthenticationManagerBuilder.class);
-        authenticationManagerBuilder
-                .userDetailsService(userDetailService)
-                .passwordEncoder(bCryptPasswordEncoder());
-        return authenticationManagerBuilder.build();
     }
 }

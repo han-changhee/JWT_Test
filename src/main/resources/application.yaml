@@ -28,6 +28,15 @@ jwt:
 
 server:
   port: 8082
+  http2:
+    enabled: true
+  ssl:
+    key-store: classpath:ssl/rts2m.gnsson.com.pfx
+    key-store-type: PKCS12
+    key-store-password: 9hz64xp5
+    enabled: true
+    protocol: TLS
+    enabled-protocols: TLSv1.2
 
 springdoc:
   packages-to-exclude: org.egovframework.rte.jwt_test
